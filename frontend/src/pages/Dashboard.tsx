@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { 
   Plus, Trash2, ExternalLink, Users, LogOut, 
-  Settings, Layers, Share2, Menu, X, HelpCircle,
-  ChevronRight, BarChart3, Copy, Check, Globe, Shield, CreditCard, UserPlus, Lock, Mail, Layout, Infinity
+  Settings, Layers, Share2, Menu, X, HelpCircle, User,
+  ChevronRight, BarChart3, Copy, Check, Globe, Shield, CreditCard, UserPlus, Lock, Mail, Layout, Infinity, Edit3
 } from 'lucide-react';
 
 const Logo = ({ className = "" }: { className?: string }) => (
@@ -15,7 +15,6 @@ const Logo = ({ className = "" }: { className?: string }) => (
   </div>
 );
 
-// Custom Tooltip Component
 const Tooltip = ({ text }: { text: string }) => (
   <div className="group relative inline-block ml-1">
     <HelpCircle size={14} className="text-slate-300 cursor-help hover:text-indigo-500 transition-colors" />
@@ -45,6 +44,7 @@ interface CampaignType {
 
 interface UserType {
   id: number;
+  name?: string;
   email: string;
   role: string;
   planType: string;
@@ -55,7 +55,7 @@ const Dashboard = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignType[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [currentUser] = useState<UserType | null>(() => {
+  const [currentUser, setCurrentUser] = useState<UserType | null>(() => {
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
   });
@@ -68,8 +68,15 @@ const Dashboard = () => {
   
   const [newCampaign, setNewCampaign] = useState({ name: '', slug: '', description: 'MODE:BALANCE' });
   const [newGroup, setNewGroup] = useState({ name: '', link: '', maxClicks: 100, isUnlimited: false });
-  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'user', planType: 'free' });
-  const [profileData, setProfileData] = useState({ password: '' });
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'user', planType: 'free' });
+  
+  const [profileData, setProfileData] = useState({ 
+    name: currentUser?.name || '', 
+    email: currentUser?.email || '', 
+    oldPassword: '', 
+    newPassword: '', 
+    confirmPassword: '' 
+  });
   
   const [loading, setLoading] = useState(false);
 
@@ -77,6 +84,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (activeTab === 'settings' && currentUser?.role === 'admin') fetchUsers();
+    if (activeTab === 'settings') {
+       setProfileData(prev => ({...prev, name: currentUser?.name || '', email: currentUser?.email || ''}));
+    }
     setIsMobileMenuOpen(false);
   }, [activeTab, currentUser]);
 
@@ -113,7 +123,7 @@ const Dashboard = () => {
       await api.post('/campaigns', newCampaign);
       setShowCampaignModal(false);
       setNewCampaign({ name: '', slug: '', description: 'MODE:BALANCE' });
-      await fetchCampaigns(); // Real-time update in state
+      await fetchCampaigns();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Erro ao criar campanha');
     } finally { setLoading(false); }
@@ -123,12 +133,8 @@ const Dashboard = () => {
     e.preventDefault();
     if (!selectedCampaign) return;
     setLoading(true);
-    
-    // Auto-sanitização do Link (Garante HTTPS)
     let finalLink = newGroup.link.trim();
-    if (finalLink && !finalLink.startsWith('http')) {
-      finalLink = 'https://' + finalLink;
-    }
+    if (finalLink && !finalLink.startsWith('http')) finalLink = 'https://' + finalLink;
 
     try {
       await api.post('/groups', { 
@@ -139,7 +145,7 @@ const Dashboard = () => {
       });
       setShowGroupModal(false);
       setNewGroup({ name: '', link: '', maxClicks: 100, isUnlimited: false });
-      await fetchCampaigns(); // Real-time update in state
+      await fetchCampaigns();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Erro ao criar grupo');
     } finally { setLoading(false); }
@@ -161,11 +167,32 @@ const Dashboard = () => {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (profileData.newPassword && profileData.newPassword !== profileData.confirmPassword) {
+      alert('A nova senha e a confirmação não coincidem.');
+      return;
+    }
+
+    if (!profileData.oldPassword) {
+      alert('Você deve informar sua senha atual para salvar as alterações.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await api.put('/admin/profile', profileData);
-      alert('Perfil atualizado!');
-      setProfileData({ password: '' });
-    } catch (err) { alert('Erro ao atualizar'); }
+      const { data } = await api.put('/admin/profile', profileData);
+      alert('Perfil atualizado com sucesso!');
+      
+      // Atualizar dados locais
+      localStorage.setItem('user', JSON.stringify(data.user));
+      setCurrentUser(data.user);
+      
+      setProfileData(prev => ({...prev, oldPassword: '', newPassword: '', confirmPassword: ''}));
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao atualizar perfil');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -174,7 +201,7 @@ const Dashboard = () => {
     try {
       await api.post('/admin/users', newUser);
       setShowUserModal(false);
-      setNewUser({ email: '', password: '', role: 'user', planType: 'free' });
+      setNewUser({ name: '', email: '', password: '', role: 'user', planType: 'free' });
       fetchUsers();
     } catch (err: any) { alert(err.response?.data?.error || 'Erro'); }
     finally { setLoading(false); }
@@ -207,9 +234,9 @@ const Dashboard = () => {
       </nav>
       <div className="p-4 mt-auto">
         <div className="bg-slate-900 rounded-[32px] p-5 text-white shadow-2xl relative overflow-hidden">
-           {currentUser?.role === 'admin' && <div className="absolute top-0 right-0 bg-indigo-600 text-[8px] font-black px-2.5 py-1 uppercase rounded-bl-lg">MASTER</div>}
+           {currentUser?.role === 'admin' && <div className="absolute top-0 right-0 bg-indigo-600 text-[8px] font-black px-2.5 py-1 uppercase tracking-tighter rounded-bl-lg">MASTER</div>}
            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Operador Ativo</p>
-           <p className="font-black truncate text-xs italic uppercase tracking-tight mb-4">{currentUser?.email || '...'}</p>
+           <p className="font-black truncate text-xs italic uppercase tracking-tight relative z-10 mb-4">{currentUser?.name || currentUser?.email || '...'}</p>
            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-rose-600 text-white py-3 rounded-xl text-[9px] font-black transition-all border border-slate-700 uppercase tracking-widest"><LogOut size={12} /> Sair</button>
         </div>
       </div>
@@ -224,7 +251,7 @@ const Dashboard = () => {
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-12">
               <div>
                 <h1 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase">Dashboard</h1>
-                <p className="text-slate-500 font-bold">Gerencie seus fluxos de distribuição inteligentes</p>
+                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1">Bem vindo, {currentUser?.name || 'Operador'}</p>
               </div>
               <button 
                 onClick={() => setShowCampaignModal(true)}
@@ -283,7 +310,7 @@ const Dashboard = () => {
                                 <div className="flex justify-between items-end">
                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                      Ocupação 
-                                     <Tooltip text="A capacidade define o limite de cliques que este grupo pode receber antes de ser ignorado pelo redirecionador." />
+                                     <Tooltip text="A capacidade define o limite de cliques que este grupo pode receber." />
                                    </span>
                                    <span className="text-sm font-black text-slate-900 italic uppercase">
                                      {g.currentClicks} / {g.maxClicks === -1 ? <Infinity className="inline" size={16} /> : g.maxClicks}
@@ -332,42 +359,77 @@ const Dashboard = () => {
       case 'settings':
         return (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase mb-10">Settings</h1>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase mb-10">Configurações</h1>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-               <div className="bg-white p-10 md:p-12 rounded-[56px] border border-slate-100 shadow-sm">
+               <div className="bg-white p-10 md:p-12 rounded-[56px] border border-slate-100 shadow-sm group relative overflow-hidden">
                   <div className="flex items-center gap-5 mb-10">
-                     <Lock className="text-indigo-600" size={28} />
-                     <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tight">Segurança</h3>
-                  </div>
-                  <form onSubmit={handleUpdateProfile} className="space-y-8">
-                     <div className="space-y-3">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Nova Senha</label>
-                        <input type="password" placeholder="Digite a nova senha" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[24px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm transition-all" value={profileData.password} onChange={e => setProfileData({ password: e.target.value })} />
+                     <div className="bg-slate-50 p-4 rounded-3xl text-indigo-600 shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500">
+                        <Edit3 size={28} />
                      </div>
-                     <button className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black uppercase italic tracking-widest text-[11px] hover:bg-black transition-all shadow-xl">Atualizar Senha</button>
+                     <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tight leading-tight">Editar Meu<br/>Perfil</h3>
+                  </div>
+                  <form onSubmit={handleUpdateProfile} className="space-y-6 relative z-10">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 text-left">Nome de Exibição</label>
+                           <input type="text" placeholder="Seu Nome" className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-[20px] focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-sm transition-all shadow-inner" value={profileData.name} onChange={e => setProfileData({...profileData, name: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 text-left">E-mail Principal</label>
+                           <input type="email" placeholder="seu@email.com" className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-[20px] focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-sm transition-all shadow-inner" value={profileData.email} onChange={e => setProfileData({...profileData, email: e.target.value})} required />
+                        </div>
+                     </div>
+
+                     <div className="pt-4 border-t border-slate-50">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 italic ml-2">Alteração de Senha (Opcional)</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                           <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 text-left">Nova Senha</label>
+                              <input type="password" placeholder="Mínimo 6 caracteres" className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-[20px] focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-sm transition-all shadow-inner" value={profileData.newPassword} onChange={e => setProfileData({...profileData, newPassword: e.target.value})} />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 text-left">Confirmar Nova Senha</label>
+                              <input type="password" placeholder="Repita a senha" className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-[20px] focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-sm transition-all shadow-inner" value={profileData.confirmPassword} onChange={e => setProfileData({...profileData, confirmPassword: e.target.value})} />
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="pt-4 space-y-4">
+                        <div className="space-y-2">
+                           <label className="block text-[10px] font-black text-rose-500 uppercase tracking-widest ml-2 text-left animate-pulse">Senha Atual (Obrigatório para salvar)</label>
+                           <input type="password" placeholder="Confirme sua senha atual para validar" className="w-full bg-white border-2 border-indigo-100 px-6 py-5 rounded-[24px] focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600 outline-none font-black text-sm transition-all" value={profileData.oldPassword} onChange={e => setProfileData({...profileData, oldPassword: e.target.value})} required />
+                        </div>
+                        <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white py-5 rounded-[24px] font-black uppercase italic tracking-widest text-[11px] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 border-b-4 border-indigo-800 active:scale-[0.98]">
+                           {loading ? 'Salvando...' : 'Salvar Alterações'}
+                        </button>
+                     </div>
                   </form>
+                  <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-indigo-50 rounded-full blur-3xl opacity-50"></div>
                </div>
 
                {currentUser?.role === 'admin' && (
-                 <div className="bg-white p-10 md:p-12 rounded-[56px] border border-slate-100 shadow-sm">
+                 <div className="bg-white p-10 md:p-12 rounded-[56px] border border-slate-100 shadow-sm group">
                     <div className="flex items-center justify-between mb-10">
                        <div className="flex items-center gap-5">
-                          <UserPlus className="text-indigo-600" size={28} />
-                          <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tight">Operadores</h3>
+                          <div className="bg-slate-50 p-4 rounded-3xl text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 shadow-inner">
+                             <UserPlus size={28} />
+                          </div>
+                          <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tight leading-tight">Operadores</h3>
                        </div>
-                       <button onClick={() => setShowUserModal(true)} className="bg-indigo-600 text-white p-4 rounded-[20px] hover:bg-indigo-700 transition-all shadow-lg"><Plus size={24} /></button>
+                       <button onClick={() => setShowUserModal(true)} className="bg-indigo-600 text-white p-4 rounded-[20px] hover:bg-indigo-700 transition-all shadow-lg active:rotate-90"><Plus size={24} /></button>
                     </div>
-                    <div className="space-y-5 max-h-[350px] overflow-y-auto pr-4">
+                    <div className="space-y-5 max-h-[450px] overflow-y-auto pr-4 custom-scrollbar">
                        {users.map(u => (
-                         <div key={u.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-[32px] border border-slate-100">
+                         <div key={u.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-[32px] border border-slate-100 group/u transition-all hover:bg-white hover:shadow-xl">
                             <div>
-                               <p className="font-black text-slate-900 text-sm tracking-tight">{u.email}</p>
-                               <div className="flex items-center gap-3 mt-1">
-                                  <span className="text-[8px] font-black uppercase tracking-widest bg-indigo-100 text-indigo-600 px-2 py-1 rounded">{u.role}</span>
-                                  <span className="text-[8px] font-black uppercase tracking-widest bg-slate-200 text-slate-500 px-2 py-1 rounded">{u.planType}</span>
+                               <p className="font-black text-slate-900 text-sm mb-1 tracking-tight">{u.name || 'Sem Nome'}</p>
+                               <p className="text-[10px] text-slate-400 font-bold mb-2">{u.email}</p>
+                               <div className="flex items-center gap-3">
+                                  <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>{u.role}</span>
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 px-2 py-1 rounded-lg bg-white border border-slate-100">{u.planType}</span>
                                </div>
                             </div>
-                            <button onClick={() => handleDeleteUser(u.id)} className="text-slate-300 hover:text-rose-500"><Trash2 size={18} /></button>
+                            <button onClick={() => handleDeleteUser(u.id)} className="p-3 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover/u:opacity-100"><Trash2 size={18} /></button>
                          </div>
                        ))}
                     </div>
@@ -383,7 +445,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row">
-      {/* Mobile Header */}
       <div className="lg:hidden bg-white border-b border-slate-100 p-4 sticky top-0 z-[100] flex justify-between items-center shadow-sm">
         <Logo className="scale-90 origin-left" />
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-3 bg-slate-50 rounded-2xl text-slate-900 shadow-inner active:scale-90 transition-all">{isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
@@ -406,23 +467,23 @@ const Dashboard = () => {
           <div className="bg-white rounded-[56px] p-10 md:p-14 max-w-lg w-full shadow-3xl border border-slate-100 animate-in zoom-in-95 duration-500">
             <h2 className="text-4xl font-black text-slate-900 mb-3 tracking-tighter italic uppercase text-center md:text-left">Nova Campanha</h2>
             <form onSubmit={handleCreateCampaign} className="space-y-8">
-              <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Nome</label>
-                <input placeholder="Ex: Lançamento VIP" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none font-black text-sm uppercase italic transition-all" value={newCampaign.name} onChange={e => setNewCampaign({...newCampaign, name: e.target.value})} required />
+              <div className="space-y-3 px-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Nome</label>
+                <input placeholder="Ex: Lançamento VIP" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm uppercase italic transition-all" value={newCampaign.name} onChange={e => setNewCampaign({...newCampaign, name: e.target.value})} required />
               </div>
-              <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Slug URL</label>
-                <input placeholder="promo-leads" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none font-black text-sm text-indigo-600 uppercase italic transition-all" value={newCampaign.slug} onChange={e => setNewCampaign({...newCampaign, slug: e.target.value})} required />
+              <div className="space-y-3 px-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Slug URL</label>
+                <input placeholder="promo-leads" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm text-indigo-600 uppercase italic transition-all" value={newCampaign.slug} onChange={e => setNewCampaign({...newCampaign, slug: e.target.value})} required />
               </div>
-              <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Modo de Distribuição <Tooltip text="SEQUENCIAL: Enche um grupo até o fim. SMART BALANCE: Distribui igualmente para manter todos com o mesmo número de pessoas." /></label>
+              <div className="space-y-3 px-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Modo de Distribuição</label>
                 <select className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-[10px] uppercase italic transition-all shadow-inner" value={newCampaign.description} onChange={e => setNewCampaign({...newCampaign, description: e.target.value})}>
-                   <option value="MODE:BALANCE">Smart Balance (Recomendado)</option>
-                   <option value="MODE:SEQUENTIAL">Sequencial por Capacidade</option>
+                   <option value="MODE:BALANCE">Smart Balance</option>
+                   <option value="MODE:SEQUENTIAL">Sequencial</option>
                 </select>
               </div>
               <div className="flex gap-5 pt-4">
-                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-5 rounded-[28px] font-black shadow-2xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 uppercase italic text-[11px] border-b-4 border-indigo-800">{loading ? 'Criando...' : 'Finalizar'}</button>
+                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-5 rounded-[28px] font-black shadow-2xl hover:bg-indigo-700 transition-all disabled:opacity-50 uppercase italic tracking-widest text-[11px] border-b-4 border-indigo-800">{loading ? '...' : 'Salvar'}</button>
                 <button type="button" onClick={() => setShowCampaignModal(false)} className="px-8 bg-slate-100 text-slate-600 py-5 rounded-[28px] font-black hover:bg-slate-200 transition-all text-[11px] uppercase italic">Sair</button>
               </div>
             </form>
@@ -437,28 +498,28 @@ const Dashboard = () => {
             <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic uppercase text-center md:text-left">Novo Grupo</h2>
             <form onSubmit={handleCreateGroup} className="space-y-8">
               <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Título do Grupo</label>
-                <input placeholder="Ex: Grupo 01" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm uppercase italic transition-all shadow-inner" value={newGroup.name} onChange={e => setNewGroup({...newGroup, name: e.target.value})} required />
+                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Nome do Grupo</label>
+                <input placeholder="Ex: Grupo 01" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm uppercase italic" value={newGroup.name} onChange={e => setNewGroup({...newGroup, name: e.target.value})} required />
               </div>
               <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Link do Destino <Tooltip text="Pode colar apenas o link (ex: chat.whatsapp.com). O sistema adicionará o https:// automaticamente para você." /></label>
-                <input placeholder="chat.whatsapp.com/..." className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-[11px] transition-all shadow-inner" value={newGroup.link} onChange={e => setNewGroup({...newGroup, link: e.target.value})} required />
+                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2 text-left">Link de Destino <Tooltip text="Pode colar sem o https://" /></label>
+                <input placeholder="chat.whatsapp.com/..." className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-[11px]" value={newGroup.link} onChange={e => setNewGroup({...newGroup, link: e.target.value})} required />
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center px-2">
-                   <label className="block text-[10px] font-black text-slate-400 uppercase">Capacidade <Tooltip text="A capacidade define o limite de leads. Quando atingido, o redirecionador passa a ignorar este grupo." /></label>
+                   <label className="block text-[10px] font-black text-slate-400 uppercase">Capacidade</label>
                    <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input type="checkbox" checked={newGroup.isUnlimited} onChange={e => setNewGroup({...newGroup, isUnlimited: e.target.checked})} className="w-4 h-4 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                       <span className="text-[10px] font-black text-indigo-600 uppercase italic">Sem Limite</span>
                    </label>
                 </div>
                 {!newGroup.isUnlimited && (
-                  <input type="number" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm italic transition-all shadow-inner animate-in slide-in-from-top-2" value={newGroup.maxClicks} onChange={e => setNewGroup({...newGroup, maxClicks: parseInt(e.target.value)})} required />
+                  <input type="number" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm italic" value={newGroup.maxClicks} onChange={e => setNewGroup({...newGroup, maxClicks: parseInt(e.target.value)})} required />
                 )}
               </div>
               <div className="flex gap-5 pt-4">
-                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-5 rounded-[28px] font-black shadow-2xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 uppercase italic text-[11px] border-b-4 border-indigo-800">Salvar Grupo</button>
-                <button type="button" onClick={() => setShowGroupModal(false)} className="px-8 bg-slate-100 text-slate-600 py-5 rounded-[28px] font-black hover:bg-slate-200 transition-all text-[11px] uppercase italic">Sair</button>
+                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-5 rounded-[28px] font-black shadow-2xl hover:bg-indigo-700 transition-all border-b-4 border-indigo-800 uppercase italic text-[11px]">{loading ? '...' : 'Adicionar'}</button>
+                <button type="button" onClick={() => setShowGroupModal(false)} className="px-8 bg-slate-100 text-slate-600 py-5 rounded-[28px] font-black hover:bg-slate-200 uppercase italic text-[11px]">Sair</button>
               </div>
             </form>
           </div>
@@ -469,33 +530,31 @@ const Dashboard = () => {
       {showUserModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[200] animate-in fade-in duration-300">
           <div className="bg-white rounded-[56px] p-10 md:p-14 max-w-lg w-full shadow-3xl border border-slate-100 animate-in zoom-in-95 duration-500">
-            <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic uppercase">Novo Operador</h2>
+            <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic uppercase text-center">Novo Operador</h2>
             <form onSubmit={handleCreateUser} className="space-y-8">
-              <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">E-mail</label>
-                <div className="relative group">
-                   <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                   <input type="email" placeholder="email@exemplo.com" className="w-full bg-slate-50 border border-slate-200 pl-16 pr-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm transition-all shadow-inner" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} required />
-                </div>
+              <div className="space-y-3 px-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2 text-left">Nome Completo</label>
+                <input type="text" placeholder="Nome do Operador" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm uppercase italic transition-all" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} required />
               </div>
-              <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Senha</label>
-                <div className="relative group">
-                   <Lock className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                   <input type="password" placeholder="••••••••" className="w-full bg-slate-50 border border-slate-200 pl-16 pr-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm transition-all shadow-inner" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} required />
-                </div>
+              <div className="space-y-3 px-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2 text-left">E-mail Corporativo</label>
+                <input type="email" placeholder="email@exemplo.com" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm transition-all" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} required />
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-3 px-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase ml-2 text-left">Senha Provisória</label>
+                <input type="password" placeholder="••••••••" className="w-full bg-slate-50 border border-slate-200 px-8 py-5 rounded-[28px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-sm transition-all" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} required />
+              </div>
+              <div className="grid grid-cols-2 gap-6 px-1">
                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Nível</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 px-6 py-5 rounded-[24px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-[10px] uppercase italic shadow-inner" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase ml-2 text-left">Nível</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 px-6 py-5 rounded-[24px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-[10px] uppercase italic" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
                        <option value="user">Operador</option>
                        <option value="admin">Administrador</option>
                     </select>
                  </div>
                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase ml-2">Pacote</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 px-6 py-5 rounded-[24px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-[10px] uppercase italic shadow-inner" value={newUser.planType} onChange={e => setNewUser({...newUser, planType: e.target.value})}>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase ml-2 text-left">Pacote</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 px-6 py-5 rounded-[24px] focus:ring-4 focus:ring-indigo-50 outline-none font-black text-[10px] uppercase italic" value={newUser.planType} onChange={e => setNewUser({...newUser, planType: e.target.value})}>
                        <option value="free">Free</option>
                        <option value="pro">Pro</option>
                        <option value="enterprise">Enterprise</option>
@@ -503,8 +562,8 @@ const Dashboard = () => {
                  </div>
               </div>
               <div className="flex gap-5 pt-4">
-                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-5 rounded-[28px] font-black shadow-2xl hover:bg-indigo-700 transition-all disabled:opacity-50 uppercase italic text-[11px] border-b-4 border-indigo-800">Cadastrar</button>
-                <button type="button" onClick={() => setShowUserModal(false)} className="px-8 bg-slate-100 text-slate-600 py-5 rounded-[28px] font-black hover:bg-slate-200 transition-all text-[11px] uppercase italic">Sair</button>
+                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-5 rounded-[28px] font-black shadow-2xl hover:bg-indigo-700 transition-all border-b-4 border-indigo-800 uppercase italic text-[11px]">{loading ? '...' : 'Cadastrar'}</button>
+                <button type="button" onClick={() => setShowUserModal(false)} className="px-8 bg-slate-100 text-slate-600 py-5 rounded-[28px] font-black hover:bg-slate-200 uppercase italic text-[11px]">Sair</button>
               </div>
             </form>
           </div>
