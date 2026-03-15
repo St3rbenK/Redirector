@@ -44,29 +44,12 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('campaigns');
   const [campaigns, setCampaigns] = useState<CampaignType[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  
-  const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [showGroupModal, setShowGroupModal] = useState(false);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<CampaignType | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  
-  const [newCampaign, setNewCampaign] = useState({ name: '', slug: '', description: '' });
-  const [newGroup, setNewGroup] = useState({ name: '', link: '', maxClicks: 100 });
-  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'user', planType: 'free' });
-  const [profileData, setProfileProfileData] = useState({ password: '' });
-  
-  const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
+  });
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const parsedUser = JSON.parse(userStr);
-      setCurrentUser(parsedUser);
-      // Log para debug no console do navegador do usuário
-      console.log('Sessão ativa:', parsedUser.email, 'Cargo:', parsedUser.role);
-    }
     fetchCampaigns();
   }, []);
 

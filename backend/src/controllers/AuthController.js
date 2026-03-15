@@ -28,7 +28,17 @@ exports.login = async (req, res) => {
     }
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, email: user.email } });
+    
+    // ENVIAR ROLE E PLAN PARA O FRONTEND
+    res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        email: user.email,
+        role: user.role,
+        planType: user.planType
+      } 
+    });
   } catch (error) {
     res.status(500).json({ error: 'Erro no servidor' });
   }
