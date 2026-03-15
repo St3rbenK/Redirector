@@ -2,3 +2,5 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 // ... resto do arquivo
+// ... (COLA O CÓDIGO COMPLETO DO DASHBOARD AQUI) ...
+export default Dashboard;
