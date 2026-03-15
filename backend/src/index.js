@@ -10,44 +10,49 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// 1. API Routes
 app.use('/api', require('./routes/api'));
 
-// 2. Redirection Logic (Prioridade antes do Frontend)
+// Lógica de Redirecionamento Avançada
 app.get('/:slug', async (req, res, next) => {
   try {
     const { slug } = req.params;
-    
-    // Ignorar requisições de arquivos comuns ou rotas do sistema
-    if (slug.includes('.') || ['login', 'dashboard', 'health'].includes(slug)) {
-      return next();
-    }
+    if (slug.includes('.') || ['login', 'dashboard', 'health'].includes(slug)) return next();
 
     const campaign = await Campaign.findOne({
       where: { slug, active: true },
-      include: [{
-        model: Group,
-        as: 'groups',
-        where: { active: true }
-      }]
+      include: [{ model: Group, as: 'groups', where: { active: true } }]
     });
 
-    if (!campaign || !campaign.groups || campaign.groups.length === 0) {
-      return next(); // Deixa o frontend lidar com o 404 ou página não encontrada
-    }
+    if (!campaign || !campaign.groups || campaign.groups.length === 0) return next();
 
-    const availableGroups = campaign.groups.filter(g => g.currentClicks < g.maxClicks);
+    let availableGroups = [];
+    
+    // Filtra grupos disponíveis (considerando o valor -1 como ILIMITADO)
+    availableGroups = campaign.groups.filter(g => g.maxClicks === -1 || g.currentClicks < g.maxClicks);
 
     if (availableGroups.length === 0) {
       return res.status(404).send(`
         <div style="font-family: sans-serif; text-align: center; padding-top: 100px; background: #f9fafb; min-height: 100vh;">
           <h1 style="color: #111827; font-size: 48px; font-weight: 900; letter-spacing: -2px;">CAMPANHA LOTADA</h1>
-          <p style="color: #6b7280; font-weight: 600;">Todos os grupos atingiram a capacidade máxima.</p>
+          <p style="color: #6b7280; font-weight: 600;">Todos os destinos atingiram a capacidade máxima configurada.</p>
         </div>
       `);
     }
 
-    const selectedGroup = availableGroups.sort((a, b) => a.currentClicks - b.currentClicks)[0];
+    let selectedGroup;
+
+    // Lógica baseada no modo da campanha (Padrão: Smart Balance se não definido)
+    // No frontend vamos permitir escolher
+    const mode = campaign.description?.includes('MODE:SEQUENTIAL') ? 'sequential' : 'balance';
+
+    if (mode === 'sequential') {
+      // Pega o primeiro da lista que ainda tem vaga
+      selectedGroup = availableGroups[0];
+    } else {
+      // Smart Balance: Pega o que tem menos cliques atuais
+      selectedGroup = availableGroups.sort((a, b) => a.currentClicks - b.currentClicks)[0];
+    }
+
     selectedGroup.increment('currentClicks');
     selectedGroup.increment('clickCount');
 
@@ -58,28 +63,18 @@ app.get('/:slug', async (req, res, next) => {
   }
 });
 
-// 3. Static Files (Frontend)
-// A pasta 'public' conterá o build do React
 const frontendPath = path.join(__dirname, '../public');
 app.use(express.static(frontendPath));
 
-// 4. SPA Routing Fallback
-// Como é o último middleware, qualquer requisição que não foi tratada acima 
-// (APIs, Redirecionamentos ou Arquivos Estáticos) servirá o index.html
 app.use((req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
-
-// Health check
-app.get('/health', (req, res) => res.json({ status: 'OK' }));
 
 const start = async () => {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`REDIRECTOR Running on port ${PORT}`);
-    });
+    app.listen(PORT, '0.0.0.0', () => console.log(`REDIRECTOR Running on port ${PORT}`));
   } catch (error) {
     console.error('Failed to start:', error);
   }
