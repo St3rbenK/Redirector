@@ -7,7 +7,6 @@ COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY frontend/ ./
-# We skip tsc check in docker to avoid build failures due to minor type issues in production
 RUN npx vite build
 
 # Stage 2: Run Backend and Serve Frontend
@@ -22,8 +21,9 @@ RUN cd backend && npm install --production
 # Copy backend source
 COPY backend/ ./backend/
 
-# Copy built frontend to backend's public folder
-COPY --from=build-frontend /app/frontend/dist ./public
+# FIX: Copy built frontend to the CORRECT backend public folder
+# backend/src/index.js looks for '../public' relative to 'src', which is 'backend/public'
+COPY --from=build-frontend /app/frontend/dist ./backend/public
 
 WORKDIR /app/backend
 
