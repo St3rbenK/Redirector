@@ -63,9 +63,10 @@ app.get('/:slug', async (req, res, next) => {
 const frontendPath = path.join(__dirname, '../public');
 app.use(express.static(frontendPath));
 
-// 4. SPA Routing
-// Qualquer rota que não seja API ou Slug conhecido, serve o index.html do React
-app.get('(.*)', (req, res) => {
+// 4. SPA Routing Fallback
+// Como é o último middleware, qualquer requisição que não foi tratada acima 
+// (APIs, Redirecionamentos ou Arquivos Estáticos) servirá o index.html
+app.use((req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
