@@ -335,7 +335,7 @@ const Dashboard = () => {
                 ))}
               </div>
             )}
-          </>
+          </div>
         );
       case 'analytics':
         return (
