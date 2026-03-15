@@ -14,11 +14,12 @@ router.post('/auth/login', AuthController.login);
 // Campaigns
 router.get('/campaigns', authMiddleware, CampaignController.list);
 router.post('/campaigns', authMiddleware, CampaignController.create);
+router.put('/campaigns/:id', authMiddleware, CampaignController.update); // NOVO
 router.delete('/campaigns/:id', authMiddleware, CampaignController.delete);
 
 // Groups
-router.get('/groups/campaign/:campaignId', authMiddleware, GroupController.listByCampaign);
 router.post('/groups', authMiddleware, GroupController.create);
+router.put('/groups/:id', authMiddleware, GroupController.update); // NOVO
 router.delete('/groups/:id', authMiddleware, GroupController.delete);
 
 // Admin & Profile
