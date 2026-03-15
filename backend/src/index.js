@@ -65,7 +65,7 @@ app.use(express.static(frontendPath));
 
 // 4. SPA Routing
 // Qualquer rota que não seja API ou Slug conhecido, serve o index.html do React
-app.get('*', (req, res) => {
+app.get('(.*)', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
