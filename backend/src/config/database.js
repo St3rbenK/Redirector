@@ -9,13 +9,16 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,
     dialect: 'postgres',
-    logging: false,
+    logging: false, // DESATIVADO: Deixa o console limpo em produção
     dialectOptions: process.env.NODE_ENV === 'production' ? {
       ssl: {
         require: true,
         rejectUnauthorized: false
       }
     } : {}
+  },
+  {
+    logging: false // Garantindo que o Sequelize não logue queries
   }
 );
 
