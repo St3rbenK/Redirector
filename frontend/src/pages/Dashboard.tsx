@@ -49,6 +49,19 @@ const Dashboard = () => {
     return userStr ? JSON.parse(userStr) : null;
   });
 
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<CampaignType | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  
+  const [newCampaign, setNewCampaign] = useState({ name: '', slug: '', description: '' });
+  const [newGroup, setNewGroup] = useState({ name: '', link: '', maxClicks: 100 });
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'user', planType: 'free' });
+  const [profileData, setProfileProfileData] = useState({ password: '' });
+  
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     fetchCampaigns();
   }, []);
