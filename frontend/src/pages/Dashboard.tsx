@@ -61,11 +61,17 @@ const Dashboard = () => {
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
-    if (userStr) setCurrentUser(JSON.parse(userStr));
+    if (userStr) {
+      const parsedUser = JSON.parse(userStr);
+      setCurrentUser(parsedUser);
+      // Log para debug no console do navegador do usuário
+      console.log('Sessão ativa:', parsedUser.email, 'Cargo:', parsedUser.role);
+    }
     fetchCampaigns();
   }, []);
 
   useEffect(() => {
+    // Busca usuários se for admin e estiver na aba de settings
     if (activeTab === 'settings' && currentUser?.role === 'admin') {
       fetchUsers();
     }
@@ -445,8 +451,11 @@ const Dashboard = () => {
           </button>
         </nav>
         <div className="mt-auto pt-6 border-t border-slate-100 flex flex-col gap-4">
-          <div className="bg-slate-900 rounded-[32px] p-5 text-white shadow-2xl">
-             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Operador {currentUser?.role === 'admin' ? '(Admin)' : ''}</p>
+          <div className="bg-slate-900 rounded-[32px] p-5 text-white shadow-2xl relative overflow-hidden">
+             {currentUser?.role === 'admin' && (
+               <div className="absolute top-0 right-0 bg-indigo-600 text-[8px] font-black px-2 py-1 uppercase tracking-tighter rounded-bl-lg">MASTER</div>
+             )}
+             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Operador</p>
              <p className="font-black truncate text-sm italic uppercase tracking-tight">{currentUser?.email || '...'}</p>
              <button onClick={handleLogout} className="mt-4 flex items-center gap-2 text-rose-400 hover:text-rose-300 text-[10px] font-black transition uppercase tracking-widest">
                <LogOut size={14} /> Sair do Sistema
