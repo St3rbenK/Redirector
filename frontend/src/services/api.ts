@@ -1,6 +1,7 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 
 const api = axios.create({
+  // Em produção o Express servirá na mesma porta, então /api funciona sem baseURL fixa
   baseURL: '/api',
 });
 

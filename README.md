@@ -1,33 +1,24 @@
 # REDIRECTOR - Smart Group Distribution (All-in-One)
 
-Versão unificada do **Redirector**: Frontend e Backend rodando no mesmo serviço para máxima simplicidade.
-
-## 💎 Diferenciais
-- **Mono-Container:** Tudo roda em um único serviço (Node.js).
-- **Auto-Hosting:** O Express serve o Frontend React automaticamente.
-- **Configuração Zero:** Não é necessário lidar com CORS em produção ou domínios separados.
-
 ## 🚀 Deploy no Dokploy (Application)
 
-Siga estes passos simples para rodar o Redirector v3:
+Siga estes passos simples:
 
 ### 1. Banco de Dados
-- No Dokploy, crie um serviço de **PostgreSQL**.
-- Anote a `DATABASE_URL`.
+- Crie um serviço de **PostgreSQL** no Dokploy.
+- Copie a `DATABASE_URL`.
 
 ### 2. Aplicação Redirector
 - Crie uma aplicação no Dokploy.
-- **Configuração do Docker:**
-  - Build Type: `Dockerfile`
-  - Docker Context: `redirector`
-  - Dockerfile Path: `redirector/Dockerfile`
-- **Variáveis de Ambiente:**
-  - `DATABASE_URL`: URL de conexão do seu Postgres.
-  - `JWT_SECRET`: Uma chave secreta segura.
-  - `PORT`: 3001
-- **Domínio:** Configure seu domínio principal (ex: `meuredirecionador.com`).
+- **Build Type:** Dockerfile
+- **Context:** `.` (ou `redirector` se o repo tiver a pasta)
+- **Dockerfile Path:** `Dockerfile` (ou `redirector/Dockerfile`)
+- **Port:** `3000` (Certifique-se que o Dokploy aponta para a porta 3000 interna).
 
-O Dokploy fará o build do Frontend, unificará com o Backend e iniciará o serviço.
+### 3. Variáveis de Ambiente
+- `DATABASE_URL`: URL do seu Postgres.
+- `JWT_SECRET`: Uma senha forte.
+- `PORT`: 3000
 
 ## 🔑 Acesso Padrão
 - **Email:** `admin@admin.com`
