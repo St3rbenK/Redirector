@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { 
   Plus, Trash2, ExternalLink, Users, LogOut, 
-  Settings, LayoutDashboard, Layers, Share2, 
-  ChevronRight, BarChart3, Copy, Check, Globe, Shield, CreditCard
+  Settings, Layers, Share2, 
+  ChevronRight, BarChart3, Copy, Check, Globe, Shield, CreditCard, UserPlus, Lock, Mail
 } from 'lucide-react';
 
 const Logo = () => (
@@ -32,17 +32,44 @@ interface CampaignType {
   groups?: GroupType[];
 }
 
+interface UserType {
+  id: number;
+  email: string;
+  role: string;
+  planType: string;
+  createdAt: string;
+}
+
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('campaigns');
   const [campaigns, setCampaigns] = useState<CampaignType[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignType | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
   const [newCampaign, setNewCampaign] = useState({ name: '', slug: '', description: '' });
   const [newGroup, setNewGroup] = useState({ name: '', link: '', maxClicks: 100 });
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'user', planType: 'free' });
+  const [profileData, setProfileProfileData] = useState({ password: '' });
+  
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) setCurrentUser(JSON.parse(userStr));
+    fetchCampaigns();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'settings' && currentUser?.role === 'admin') {
+      fetchUsers();
+    }
+  }, [activeTab, currentUser]);
 
   const fetchCampaigns = async () => {
     try {
@@ -53,9 +80,14 @@ const Dashboard = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, []);
+  const fetchUsers = async () => {
+    try {
+      const { data } = await api.get('/admin/users');
+      setUsers(data);
+    } catch (err) {
+      console.error('Error fetching users', err);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -111,6 +143,39 @@ const Dashboard = () => {
     if (confirm('Excluir este grupo?')) {
       await api.delete(`/groups/${id}`);
       fetchCampaigns();
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.put('/admin/profile', profileData);
+      alert('Perfil atualizado!');
+      setProfileProfileData({ password: '' });
+    } catch (err) {
+      alert('Erro ao atualizar perfil');
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.post('/admin/users', newUser);
+      setShowUserModal(false);
+      setNewUser({ email: '', password: '', role: 'user', planType: 'free' });
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao criar usuário');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (id: number) => {
+    if (confirm('Excluir este usuário permanentemente?')) {
+      await api.delete(`/admin/users/${id}`);
+      fetchUsers();
     }
   };
 
@@ -241,38 +306,112 @@ const Dashboard = () => {
                  </div>
                ))}
             </div>
-            <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm text-center">
-               <div className="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <BarChart3 className="text-indigo-600" size={32} />
-               </div>
-               <h3 className="text-xl font-black text-slate-900 uppercase italic">Dados em Tempo Real</h3>
-               <p className="text-slate-500 font-bold mt-2">Esta funcionalidade está sendo processada e estará disponível em breve.</p>
-            </div>
           </div>
         );
       case 'settings':
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase mb-10">Configurações do Sistema</h1>
-            <div className="space-y-6">
-               {[
-                 { title: 'Perfil do Administrador', desc: 'Gerencie seu e-mail e senha de acesso', icon: Shield },
-                 { title: 'Domínios Personalizados', desc: 'Configure seus próprios domínios para redirecionamento', icon: Globe },
-                 { title: 'Plano e Faturamento', desc: 'Atualmente no plano PRO Vitalício', icon: CreditCard }
-               ].map((item, i) => (
-                 <div key={i} className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all cursor-pointer">
-                    <div className="flex items-center gap-5">
-                       <div className="bg-slate-50 w-14 h-14 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                          <item.icon size={24} />
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase mb-10">Configurações</h1>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+               {/* Seção de Perfil - Visível para todos */}
+               <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-4 mb-8">
+                     <div className="bg-indigo-50 p-3 rounded-2xl text-indigo-600">
+                        <Lock size={24} />
+                     </div>
+                     <h3 className="text-xl font-black text-slate-900 uppercase italic">Segurança do Perfil</h3>
+                  </div>
+                  <form onSubmit={handleUpdateProfile} className="space-y-6">
+                     <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Nova Senha</label>
+                        <input 
+                          type="password" 
+                          placeholder="Mudar sua senha de acesso"
+                          className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                          value={profileData.password}
+                          onChange={e => setProfileProfileData({ password: e.target.value })}
+                        />
+                     </div>
+                     <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase italic tracking-widest text-sm hover:bg-black transition-all">
+                        Atualizar Senha
+                     </button>
+                  </form>
+               </div>
+
+               {/* Seção Admin - Apenas Super Admin */}
+               {currentUser?.role === 'admin' && (
+                 <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-8">
+                       <div className="flex items-center gap-4">
+                          <div className="bg-indigo-50 p-3 rounded-2xl text-indigo-600">
+                             <UserPlus size={24} />
+                          </div>
+                          <h3 className="text-xl font-black text-slate-900 uppercase italic">Gestão de Usuários</h3>
                        </div>
-                       <div>
-                          <h4 className="font-black text-slate-900 uppercase italic">{item.title}</h4>
-                          <p className="text-slate-500 text-sm font-bold">{item.desc}</p>
-                       </div>
+                       <button 
+                         onClick={() => setShowUserModal(true)}
+                         className="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-all"
+                       >
+                         <Plus size={20} />
+                       </button>
                     </div>
-                    <ChevronRight className="text-slate-300 group-hover:text-indigo-600 transition-all" />
+                    
+                    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                       {users.map(u => (
+                         <div key={u.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div>
+                               <p className="font-black text-slate-900 text-sm">{u.email}</p>
+                               <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{u.role}</span>
+                                  <span className="text-slate-300">|</span>
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{u.planType}</span>
+                               </div>
+                            </div>
+                            <button onClick={() => handleDeleteUser(u.id)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                               <Trash2 size={16} />
+                            </button>
+                         </div>
+                       ))}
+                    </div>
                  </div>
-               ))}
+               )}
+
+               {/* Seção de Planos - Apenas Admin */}
+               {currentUser?.role === 'admin' && (
+                 <div className="lg:col-span-2 bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-4 mb-8">
+                       <div className="bg-amber-50 p-3 rounded-2xl text-amber-600">
+                          <CreditCard size={24} />
+                       </div>
+                       <h3 className="text-xl font-black text-slate-900 uppercase italic">Configuração de Planos e Valores</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                       {[
+                         { name: 'FREE', limit: '3 Campanhas', price: 'R$ 0,00' },
+                         { name: 'PRO', limit: '20 Campanhas', price: 'R$ 49,90' },
+                         { name: 'ENTERPRISE', limit: 'Ilimitado', price: 'R$ 99,90' }
+                       ].map((plan, i) => (
+                         <div key={i} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:border-amber-200 transition-all group">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{plan.name}</p>
+                            <h4 className="text-2xl font-black text-slate-900 mb-4 italic">{plan.price}<span className="text-xs text-slate-400 font-bold not-italic">/mês</span></h4>
+                            <div className="space-y-2 mb-6">
+                               <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                                  <Check size={14} className="text-emerald-500" /> {plan.limit}
+                               </div>
+                               <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                                  <Check size={14} className="text-emerald-500" /> Suporte 24/7
+                               </div>
+                            </div>
+                            <button className="w-full bg-white border border-slate-200 text-slate-900 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">
+                               Editar Limites
+                            </button>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               )}
             </div>
           </div>
         );
@@ -307,8 +446,8 @@ const Dashboard = () => {
         </nav>
         <div className="mt-auto pt-6 border-t border-slate-100 flex flex-col gap-4">
           <div className="bg-slate-900 rounded-[32px] p-5 text-white shadow-2xl">
-             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Operador</p>
-             <p className="font-black truncate text-sm italic uppercase tracking-tight">admin@admin.com</p>
+             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Operador {currentUser?.role === 'admin' ? '(Admin)' : ''}</p>
+             <p className="font-black truncate text-sm italic uppercase tracking-tight">{currentUser?.email || '...'}</p>
              <button onClick={handleLogout} className="mt-4 flex items-center gap-2 text-rose-400 hover:text-rose-300 text-[10px] font-black transition uppercase tracking-widest">
                <LogOut size={14} /> Sair do Sistema
              </button>
@@ -320,7 +459,7 @@ const Dashboard = () => {
         {renderContent()}
       </main>
 
-      {/* Modals remained same but with fixed TS issues */}
+      {/* Modals */}
       {showCampaignModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
           <div className="bg-white rounded-[40px] p-10 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300">
@@ -363,6 +502,52 @@ const Dashboard = () => {
               <div className="flex gap-4 pt-4">
                 <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 uppercase italic tracking-widest text-sm">{loading ? '...' : 'Salvar'}</button>
                 <button type="button" onClick={() => setShowGroupModal(false)} className="px-6 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black hover:bg-slate-200 transition-all text-sm uppercase italic">Voltar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showUserModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[40px] p-10 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300">
+            <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tighter italic uppercase">Novo Usuário</h2>
+            <p className="text-slate-500 font-bold mb-8">Cadastre um novo operador no sistema.</p>
+            <form onSubmit={handleCreateUser} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">E-mail</label>
+                <div className="relative group">
+                   <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                   <input type="email" placeholder="email@exemplo.com" className="w-full bg-slate-50 border border-slate-200 pl-14 pr-6 py-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} required />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Senha Inicial</label>
+                <div className="relative group">
+                   <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                   <input type="password" placeholder="••••••••" className="w-full bg-slate-50 border border-slate-200 pl-14 pr-6 py-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} required />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Nível</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 px-4 py-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-xs uppercase italic" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                       <option value="user">Usuário</option>
+                       <option value="admin">Admin</option>
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Plano</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 px-4 py-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-xs uppercase italic" value={newUser.planType} onChange={e => setNewUser({...newUser, planType: e.target.value})}>
+                       <option value="free">Free</option>
+                       <option value="pro">Pro</option>
+                       <option value="enterprise">Enterprise</option>
+                    </select>
+                 </div>
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 uppercase italic tracking-widest text-sm">{loading ? '...' : 'Cadastrar'}</button>
+                <button type="button" onClick={() => setShowUserModal(false)} className="px-6 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black hover:bg-slate-200 transition-all text-sm uppercase italic">Voltar</button>
               </div>
             </form>
           </div>

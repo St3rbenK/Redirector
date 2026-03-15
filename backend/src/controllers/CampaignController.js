@@ -1,4 +1,10 @@
-const { Campaign, Group } = require('../models');
+const { Campaign, Group, User } = require('../models');
+
+const PLAN_LIMITS = {
+  'free': 3,
+  'pro': 20,
+  'enterprise': 999999
+};
 
 exports.list = async (req, res) => {
   try {
@@ -16,6 +22,19 @@ exports.list = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { name, slug, description } = req.body;
+    
+    // Check Plan Limits
+    const user = await User.findByPk(req.userId);
+    const campaignCount = await Campaign.count({ where: { userId: req.userId } });
+    
+    const limit = PLAN_LIMITS[user.planType] || 3;
+    
+    if (campaignCount >= limit) {
+      return res.status(403).json({ 
+        error: `Limite do plano atingido (${limit} campanhas). Faça upgrade para criar mais.` 
+      });
+    }
+
     if (!name || !slug) return res.status(400).json({ error: 'Nome e Slug são obrigatórios' });
     
     const existing = await Campaign.findOne({ where: { slug } });
